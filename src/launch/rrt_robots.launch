@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <!-- ip camera node luanch -->
+    <node name="ip_camera" pkg="rrt_robots" type="ip_camera.py"/>
+  
+    <!-- detect markers node luanch -->
+    <node name="detect_markers" pkg="rrt_robots" type="detect.py"/>
+
+    <!-- viewer node luanch -->
+    <node name="rqt_image_view" pkg="rqt_image_view" type="rqt_image_view" respawn="false" output="screen"/>
+    
+</launch>
