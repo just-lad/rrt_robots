@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
 
-image_to_process = "5.jpg"
+image_to_process = "4.jpg"
+
 
 class Env:
     def __init__(self, x_rng, y_rng, rect_list):
@@ -413,7 +414,8 @@ def main():
     contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     for c in contours:
         rect = cv2.boundingRect(c)
-        if rect[2] < 60 or rect[3] < 80 : continue
+        if rect[2] < 60 or rect[3] < 80: 
+            continue
         custom_rects_list.append(rect)
         x,y,w,h = rect
         cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
