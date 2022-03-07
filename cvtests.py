@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
 from itertools import tee, izip
+import cv2.aruco as aruco
 
 image_to_process = "4.jpg"
 
@@ -392,10 +393,53 @@ class RrtConnect:
 
 def draw_path(path_to_draw, img):
     paired_path = pairwise(path_to_draw)
-    print(paired_path)
     for i in range(0, len(paired_path)):
          cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
     return img
+
+
+def draw_aruco(img):
+    '''
+    :param img: image to detect aruco in
+    :return: img with drawn aruco and list of two [corners, ids]
+    '''
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
+    parameters = aruco.DetectorParameters_create()
+    corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+    output = aruco.drawDetectedMarkers(img, corners, ids)  # detect the Aruco markers and display its aruco id.
+    return output, [corners, ids]
+
+
+def findArucoCoords(bbox):
+    '''
+    :param bbox: list with aruco corners
+    :return: list of coordinates
+    '''
+    topl = bbox[0][0][0], bbox[0][0][1]
+    botl = bbox[0][3][0], bbox[0][3][1]
+    topr = bbox[0][1][0], bbox[0][1][1]
+    botr = bbox[0][2][0], bbox[0][2][1]
+
+    center = ((topl[0] + botr[0]) // 2,
+              (topl[1] + botr[1]) // 2)
+
+    mid_top = ((topl[0] + topr[0]) // 2, (topl[1] + topr[1]) // 2)
+    mid_bot = ((botl[0] + botr[0]) // 2, (botl[1] + botr[1]) // 2)
+    mid_left = ((topl[0] + botl[0]) // 2, (topl[1] + botl[1]) // 2)
+    mid_right = ((topr[0] + botr[0]) // 2, (topr[1] + botr[1]) // 2)
+
+    coords = [topl,       # 0 (X Y)
+              topr,       # 1 (X Y)
+              botl,       # 2 (X Y)
+              botr,       # 3 (X Y)
+              center,     # 4 (X Y)
+              mid_top,    # 5 (X Y)
+              mid_bot,    # 6 (X Y)
+              mid_left,   # 7 (X Y)
+              mid_right]  # 8 (X Y)
+
+    return coords
 
 
 def pairwise(iterable):
@@ -406,6 +450,15 @@ def pairwise(iterable):
     a, b = tee(iterable)
     next(b, None)
     return list(izip(a, b))
+
+
+def get_start_pose(aruco_list):
+    '''
+    :param aruco_list: list with aruco marker corners and ids [corners, ids]
+    :return: aruco center
+    '''
+    aruco_coords = findArucoCoords(aruco_list[0][0])
+    return aruco_coords[4]
 
 
 def main():
@@ -421,7 +474,6 @@ def main():
     
     dsize = (int(0.6*img.shape[1]), int(0.6*img.shape[0]))
 
- 
     input_sized = cv2.resize(img, dsize)
     cropped_sized_input = input_sized[0:553, 60:920]
     custom_x_range = cropped_sized_input.shape[1]
@@ -439,21 +491,16 @@ def main():
         x,y,w,h = rect
         cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
 
-    
-    cv2.imshow("Display detected obstacles", cropped_sized_input)
-    #plt.imshow(cropped_sized_input)
-    #plt.gca().invert_yaxis()
-    custom_start = (683, 190)     # Starting node
+    img_with_aruco, corns_ids = draw_aruco(cropped_sized_input)
+    custom_start = get_start_pose(corns_ids)
     custom_goal = (160, 165)  # Goal node
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
     rrt_conn = RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
     path = rrt_conn.planning()
-
     img_with_path = draw_path(path, cropped_sized_input)
-    cv2.imshow("Display detected obstacles and path", img_with_path)
 
-    #rrt_conn.plotting.animation_connect(rrt_conn.V1, rrt_conn.V2, path, "RRT_CONNECT")
-    
+    cv2.imshow("Display detected robot, obstacles and path", img_with_path)
+
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
