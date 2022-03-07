@@ -5,8 +5,9 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
+from itertools import tee, izip
 
-image_to_process = "5.jpg"
+image_to_process = "4.jpg"
 
 
 class Env:
@@ -366,19 +367,19 @@ class RrtConnect:
 
     @staticmethod
     def extract_path(node_new, node_new_prim):
-        path1 = [(node_new.x, node_new.y)]
+        path1 = [(int(node_new.x), int(node_new.y))]
         node_now = node_new
 
         while node_now.parent is not None:
             node_now = node_now.parent
-            path1.append((node_now.x, node_now.y))
+            path1.append((int(node_now.x), int(node_now.y)))
 
-        path2 = [(node_new_prim.x, node_new_prim.y)]
+        path2 = [(int(node_new_prim.x), int(node_new_prim.y))]
         node_now = node_new_prim
 
         while node_now.parent is not None:
             node_now = node_now.parent
-            path2.append((node_now.x, node_now.y))
+            path2.append((int(node_now.x), int(node_now.y)))
 
         return list(list(reversed(path1)) + path2)
 
@@ -387,6 +388,24 @@ class RrtConnect:
         dx = node_end.x - node_start.x
         dy = node_end.y - node_start.y
         return math.hypot(dx, dy), math.atan2(dy, dx)
+
+
+def draw_path(path_to_draw, img):
+    paired_path = pairwise(path_to_draw)
+    print(paired_path)
+    for i in range(0, len(paired_path)):
+         cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
+    return img
+
+
+def pairwise(iterable):
+    '''
+    :param iterable: list to iterate by 2
+    :return: list with tuples by 2
+    '''
+    a, b = tee(iterable)
+    next(b, None)
+    return list(izip(a, b))
 
 
 def main():
@@ -421,15 +440,19 @@ def main():
         cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
 
     
-    #cv2.imshow("Display detected obstacles", cropped_sized_input)
-    plt.imshow(cropped_sized_input)
-    plt.gca().invert_yaxis()
+    cv2.imshow("Display detected obstacles", cropped_sized_input)
+    #plt.imshow(cropped_sized_input)
+    #plt.gca().invert_yaxis()
     custom_start = (683, 190)     # Starting node
     custom_goal = (160, 165)  # Goal node
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 60, 0.6, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
     path = rrt_conn.planning()
-    rrt_conn.plotting.animation_connect(rrt_conn.V1, rrt_conn.V2, path, "RRT_CONNECT")
+
+    img_with_path = draw_path(path, cropped_sized_input)
+    cv2.imshow("Display detected obstacles and path", img_with_path)
+
+    #rrt_conn.plotting.animation_connect(rrt_conn.V1, rrt_conn.V2, path, "RRT_CONNECT")
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()

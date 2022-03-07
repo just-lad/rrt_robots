@@ -239,19 +239,19 @@ class RrtConnect:
 
     @staticmethod
     def extract_path(node_new, node_new_prim):
-        path1 = [(node_new.x, node_new.y)]
+        path1 = [(int(node_new.x), int(node_new.y))]
         node_now = node_new
 
         while node_now.parent is not None:
             node_now = node_now.parent
-            path1.append((node_now.x, node_now.y))
+            path1.append((int(node_now.x), int(node_now.y)))
 
-        path2 = [(node_new_prim.x, node_new_prim.y)]
+        path2 = [(int(node_new_prim.x), int(node_new_prim.y))]
         node_now = node_new_prim
 
         while node_now.parent is not None:
             node_now = node_now.parent
-            path2.append((node_now.x, node_now.y))
+            path2.append((int(node_now.x), int(node_now.y)))
 
         return list(list(reversed(path1)) + path2)
 

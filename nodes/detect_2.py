@@ -9,6 +9,7 @@ import cv2.aruco as aruco
 from aruco_detection.msg import move_command_struct
 from math import atan2, sqrt, degrees, radians
 import rrt_connect as rrt
+from itertools import tee, izip
 
 distance_threshold = 20
 target_robot = 6
@@ -19,6 +20,7 @@ class ArucoDetector:
 
     def __init__(self):
         self.image_pub = rospy.Publisher("/detected_markers", Image, queue_size=1)
+        self.image_path_pub = rospy.Publisher("/marks_obs_path", Image, queue_size=1)
         self.command_pub = rospy.Publisher("/move_commands", move_command_struct, queue_size=1)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/camera/image_raw/", Image, self.callback)
@@ -28,6 +30,7 @@ class ArucoDetector:
         self.path = None
         self.first_frame = None
         self.robot_center_init = None
+        self.path_to_draw = None
 
     def callback(self, data):
         '''
@@ -44,10 +47,19 @@ class ArucoDetector:
 
         markers_img, self.aruco_corners = self.draw_aruco(cv_image)
 
+        if self.path_to_draw is not None:
+            image_with_path = draw_path(markers_img)
+
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
         except CvBridgeError as e:
             print(e)
+
+    def draw_path(self, img):
+        paired_path = pairwise(self.path_to_draw)
+        for i in paired_path:
+            cv2.line(img, paired_path[i][0][1], (0, 255, 0), thickness=3)
+        return img
 
     def findArucoCoords(self, bbox):
         '''
@@ -178,6 +190,15 @@ def if_exist(object):
     except:
         return False
 
+def pairwise(iterable):
+    '''
+    :param iterable: list to iterate by 2
+    :return: list with tuples by 2
+    '''
+    a, b = tee(iterable)
+    next(b, None)
+    return list(izip(a, b))
+
 
 def main():
     custom_rects_list = []
@@ -205,6 +226,7 @@ def main():
         custom_env = rrt.Env(custom_x_range, custom_y_range, custom_rects_list)
         rrt_conn = rrt.RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
         path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
+
 
     if detector.follow_path(path):
         goal_reached = True
