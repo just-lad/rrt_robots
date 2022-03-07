@@ -129,7 +129,7 @@ def if_exist(object):
         return False
 
 def main():
-    print("Initializing ROS-node")
+    print("Initializing detect_markers")
     rospy.init_node('detect_markers', anonymous=True)
     print("Bring the aruco-ID in front of camera")
     detector = Aruco_detector()

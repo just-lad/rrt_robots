@@ -11,6 +11,7 @@ from math import radians, pi
 wheel_base = 130
 wheel_radius = 25
 wheel_holes = 8
+actual_ID = 6
 # minimum angle delta to react to
 angle_threshold = (float(wheel_radius) / float(wheel_base)) * radians(360.0/wheel_holes)
 distance_threshold = round((2*pi*wheel_radius/wheel_holes)*0.4, 0)
@@ -23,18 +24,21 @@ class RobotMover:
         self.left_sensor_pin = 12
         self.right_sensor_pin = 13
         # vars to contain actual position
+        self.robotID = 0
         self.angle_delta = 0
         self.dist_to_goal = 0
         # counters to allow step mode work properly
         self.counterL = 0
         self.counterR = 0
         # params to constrain movement
+        self.robotID = 0
         self.max_speed = 0.3
         self.max_move_steps = 10
         self.max_spin_steps = 2
 
     def ISR_commander(self, command):
         # each ros tick renew actual position
+        self.robotID = command.robot_ID
         self.angle_delta = command.angle_delta
         self.dist_to_goal = command.dist_to_goal
 
@@ -115,11 +119,14 @@ class RobotMover:
                 robot.right_motor.value = 0
         return True
 
-    def seek(self, robot):
+    def seek(self, robot, robot_id):
         '''
         :param robot: executing object
+        :param robot_id: robot to execute command
         :return: True if success
         '''
+        if robot_id != actual_ID:
+            return False
         if self.angle_delta % angle_threshold > 0:              # if angle resolution is enough
             if self.angle_delta < pi:                           # if should spin clockwise
                 step = constrain((self.angle_delta // angle_threshold), 1, self.max_spin_steps)
@@ -162,7 +169,7 @@ def main():
     rospy.Subscriber('/move_commands', move_command_struct, mover.ISR_commander)
 
     while not rospy.shutdown():
-        while mover.seek(robot):
+        while mover.seek(robot, mover.robotID):
             pass
 
 

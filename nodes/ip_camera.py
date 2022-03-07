@@ -8,6 +8,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge, CvBridgeError 
 
+
 class IPCamera(object):
     def __init__(self, url):
         try:
@@ -18,9 +19,11 @@ class IPCamera(object):
         self.image_pub = rospy.Publisher("/camera/image_raw", Image, queue_size=1)
         self.bridge = CvBridge()
 
+
 def crop(frame_to_crop):
     cropped_frame = frame_to_crop[0:720 , 150:1150]
     return cropped_frame
+
 
 if __name__ == '__main__':
 
@@ -33,7 +36,7 @@ if __name__ == '__main__':
     
     while not rospy.is_shutdown() and ip_camera.vcap.isOpened():
         ret, frame = ip_camera.vcap.read()
-        if ret == False:
+        if not ret:
             print 'Could not read frame'
             break
         if not ip_camera.vcap.isOpened():
@@ -42,7 +45,6 @@ if __name__ == '__main__':
         img_msg = ip_camera.bridge.cv2_to_imgmsg(crop(frame), "bgr8")
         img_msg.header.stamp = rospy.get_rostime()
         ip_camera.image_pub.publish(img_msg)
-
 
     ip_camera.vcap.release()
     cv2.destroyAllWindows()
