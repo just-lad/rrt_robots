@@ -190,6 +190,7 @@ def if_exist(object):
     except:
         return False
 
+
 def pairwise(iterable):
     '''
     :param iterable: list to iterate by 2
@@ -198,6 +199,15 @@ def pairwise(iterable):
     a, b = tee(iterable)
     next(b, None)
     return list(izip(a, b))
+
+
+def split_path(path):
+    '''
+    :param path: path to split in two
+    :return: two lists, represents to paths to the central point
+    '''
+    half = len(path)//2
+    return path[:half], list(reversed(path[half:]))
 
 
 def main():

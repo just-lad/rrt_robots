@@ -472,6 +472,11 @@ def get_pose(aruco_list, id):
     return False
 
 
+def split_path(path):
+    half = len(path)//2
+    return path[:half], list(reversed(path[half:]))
+
+
 def main():
     custom_rects_list = []
     custom_x_range = None
@@ -506,8 +511,10 @@ def main():
     custom_start = get_pose(corns_ids, start_id)
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 80, 0.01, 5000, custom_env)
     path = rrt_conn.planning()
+    robot_1_path, robot_2_path = split_path(path)
+
     img_with_path = draw_path(path, cropped_sized_input)
 
     cv2.imshow("Display detected robot, obstacles and path", img_with_path)
