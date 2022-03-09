@@ -265,7 +265,8 @@ class Utils:
     @staticmethod
     def get_dist(start, end):
         return math.hypot(end.x - start.x, end.y - start.y)
-    
+
+
 class Node:
     def __init__(self, n):
         self.x = n[0]
@@ -394,6 +395,11 @@ class RrtConnect:
 
 
 def draw_path(path_to_draw, img):
+    '''
+    :param path_to_draw: list with waypoints as [[x0,y0]...[x_goal,y_goal]]
+    :param img: image to draw lines on
+    :return: image with path drawn
+    '''
     paired_path = pairwise(path_to_draw)
     for i in range(0, len(paired_path)):
          cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
