@@ -2,16 +2,16 @@
 
 import roslib
 import rospy
-from jetbot import Robot
+from gpiozero import Robot
 from std_msgs.msg import String
 from rrt_robots.msg import move_command_struct
-import Jetson.GPIO as GPIO
+import RPi.GPIO as GPIO
 from math import radians, pi
 
 wheel_base = 130
-wheel_radius = 25
-wheel_holes = 8
-actual_ID = 6
+wheel_radius = 32
+wheel_holes = 20
+actual_ID = 0
 # minimum angle delta to react to
 angle_threshold = (float(wheel_radius) / float(wheel_base)) * radians(360.0/wheel_holes)
 distance_threshold = round((2*pi*wheel_radius/wheel_holes)*0.4, 0)
@@ -24,7 +24,6 @@ class RobotMover:
         self.left_sensor_pin = 12
         self.right_sensor_pin = 13
         # vars to contain actual position
-        self.robotID = 0
         self.angle_delta = 0
         self.dist_to_goal = 0
         # counters to allow step mode work properly
@@ -63,14 +62,14 @@ class RobotMover:
         while steps > self.counterL and steps > self.counterR:
 
             if steps > self.counterL:
-                robot.left_motor.value = -speed
+                robot.left(-speed)
             else:
-                robot.left_motor.value = 0
+                robot.left(0)
 
             if steps > self.counterR:
-                robot.right_motor.value = speed
+                robot.right(speed)
             else:
-                robot.right_motor.value = 0
+                robot.right(0)
         return True
 
     def spin_r(self, steps, speed, robot):
@@ -86,14 +85,14 @@ class RobotMover:
         while steps > self.counterL and steps > self.counterR:
 
             if steps > self.counterL:
-                robot.left_motor.value = speed
+                robot.left(speed)
             else:
-                robot.left_motor.value = 0
+                robot.left(0)
 
             if steps > self.counterR:
-                robot.right_motor.value = -speed
+                robot.right(-speed)
             else:
-                robot.right_motor.value = 0
+                robot.right(0)
         return True
 
     def go_forward(self, steps, speed, robot):
@@ -109,14 +108,14 @@ class RobotMover:
         while steps > self.counterL and steps > self.counterR:
 
             if steps > self.counterL:
-                robot.left_motor.value = speed
+                robot.left(speed)
             else:
-                robot.left_motor.value = 0
+                robot.left(0)
 
             if steps > self.counterR:
-                robot.right_motor.value = speed
+                robot.right(speed)
             else:
-                robot.right_motor.value = 0
+                robot.right(0)
         return True
 
     def seek(self, robot, robot_id):
@@ -155,7 +154,7 @@ def constrain(val, min_val, max_val):
 
 
 def main():
-    robot = Robot()
+    robot = Robot(left=(4, 14), right=(17, 27))
     mover = RobotMover()
 
     GPIO.setmode(GPIO.BOARD)                      # BOARD pin-numbering scheme
@@ -168,9 +167,11 @@ def main():
     rospy.init_node('Robot_1')
     rospy.Subscriber('/move_commands', move_command_struct, mover.ISR_commander)
 
-    while not rospy.shutdown():
-        while mover.seek(robot, mover.robotID):
-            pass
+    while not rospy.is_shutdown():
+        # while mover.seek(robot, mover.robotID):
+        #     pass
+        mover.go_forward(5, mover.max_speed, robot)
+        rospy.sleep(4)
 
 
 if __name__ == '__main__':
