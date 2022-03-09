@@ -8,7 +8,9 @@ import os
 from itertools import tee, izip
 import cv2.aruco as aruco
 
-image_to_process = "4.jpg"
+image_to_process = "6.jpg"
+start_id = 2
+goal_id = 5
 
 
 class Env:
@@ -452,13 +454,16 @@ def pairwise(iterable):
     return list(izip(a, b))
 
 
-def get_start_pose(aruco_list):
+def get_pose(aruco_list, id):
     '''
     :param aruco_list: list with aruco marker corners and ids [corners, ids]
     :return: aruco center
     '''
-    aruco_coords = findArucoCoords(aruco_list[0][0])
-    return aruco_coords[4]
+    for ids in range(len(aruco_list[1])):
+        if aruco_list[1][ids] == id:
+            aruco_coords = findArucoCoords(aruco_list[0][ids])
+            return aruco_coords[4]
+    return False
 
 
 def main():
@@ -472,10 +477,11 @@ def main():
     if img is None:
         sys.exit("Could not read the image.")
     
-    dsize = (int(0.6*img.shape[1]), int(0.6*img.shape[0]))
+    dsize = (int(0.7*img.shape[1]), int(0.7*img.shape[0]))
+    print(dsize)
 
     input_sized = cv2.resize(img, dsize)
-    cropped_sized_input = input_sized[0:553, 60:920]
+    cropped_sized_input = input_sized[0:576, 60:830]
     custom_x_range = cropped_sized_input.shape[1]
     custom_y_range = cropped_sized_input.shape[0]
     blurred_input = cv2.GaussianBlur(cropped_sized_input, (5, 5), 0)
@@ -484,23 +490,21 @@ def main():
 
     contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     for c in contours:
-        rect = cv2.boundingRect(c)
-        if rect[2] < 60 or rect[3] < 80:
-            continue
-        custom_rects_list.append(rect)
-        x,y,w,h = rect
-        cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
+        x,y,w,h = cv2.boundingRect(c)
+        if (50 < w < 200) and (50 < h < 200):
+            rect = x, y, w, h
+            custom_rects_list.append(rect)
+            cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
 
     img_with_aruco, corns_ids = draw_aruco(cropped_sized_input)
-    custom_start = get_start_pose(corns_ids)
-    custom_goal = (160, 165)  # Goal node
+    custom_start = get_pose(corns_ids, start_id)
+    custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
     rrt_conn = RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
     path = rrt_conn.planning()
     img_with_path = draw_path(path, cropped_sized_input)
 
     cv2.imshow("Display detected robot, obstacles and path", img_with_path)
-
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
