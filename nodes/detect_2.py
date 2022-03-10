@@ -12,8 +12,8 @@ import rrt_connect as rrt
 from itertools import tee, izip
 
 distance_threshold = 20
-target_robot = 6
-custom_goal = (600, 600)
+start_id = 2
+goal_id = 5
 
 
 class ArucoDetector:
@@ -26,11 +26,26 @@ class ArucoDetector:
         self.image_sub = rospy.Subscriber("/camera/image_raw/", Image, self.callback)
         self.command = move_command_struct()
         self.aruco_corners = None
-        self.goal_i = 0
         self.path = None
         self.first_frame = None
-        self.robot_center_init = None
+        self.custom_start = None
+        self.custom_goal = None
         self.path_to_draw = None
+        self.custom_rects_list = None
+
+    def init_scene(self):
+        blurred_input = cv2.GaussianBlur(self.first_frame, (5, 5), 0)
+        gray = cv2.cvtColor(blurred_input, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 150, 250, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contours:
+            rect = cv2.boundingRect(c)
+            if rect[2] < 60 or rect[3] < 80:
+                self.custom_rects_list.append(rect)
+        start = self.get_pose(self.aruco_corners, start_id)
+        goal = self.get_pose(self.aruco_corners, goal_id)
+        self.custom_start = start[4]
+        self.custom_goal = goal[4]
 
     def callback(self, data):
         '''
@@ -103,22 +118,17 @@ class ArucoDetector:
         output = aruco.drawDetectedMarkers(img, corners, ids)  # detect the Aruco markers and display its aruco id.
         return output, [corners, ids]
 
-    def move_to_point(self, point):
+    def move_to_point(self, point, id):
         '''
         :param point: point to move to
         :return: True if reached
         '''
-        robot_id = None
-        for ids in self.aruco_corners[1][0]:
-            if self.aruco_corners[1][0][ids] == target_robot:
-                robot_id = ids
 
-        if robot_id is not None:
-            self.command.robot_ID = robot_id
-            robot_coords = self.findArucoCoords(self.aruco_corners[0][0])
-
-            if self.robot_center_init is None:
-                self.robot_center_init = robot_coords[4]
+        if id is not None:
+            self.command.robot_ID = id
+            robot_coords = self.get_pose(self.aruco_corners, id)
+            if robot_coords is None:
+                return False
 
             self.command.angle_delta = angle_between_three(robot_coords[5], robot_coords[4], point)
             self.command.dist_to_goal = distance_between_points(robot_coords[4], point)
@@ -133,15 +143,17 @@ class ArucoDetector:
         else:
             return False
 
-    def follow_path(self, path):
+    def get_pose(self, aruco_list, id):
         '''
-        :param path: list of tuples (x,y), represent path's waypoints
-        :return: True if goal is reached
+        :param id: aruco id to get pose of
+        :param aruco_list: list with aruco marker corners and ids [corners, ids]
+        :return: aruco center
         '''
-        for current_point in path:
-            while not self.move_to_point(path[current_point]):
-                pass
-        return True
+        for ids in range(len(aruco_list[1])):
+            if aruco_list[1][ids] == id:
+                aruco_coords = self.findArucoCoords(aruco_list[0][ids])
+                return aruco_coords
+        return None
 
 
 def angle_between_three(p1, p2, p3):
@@ -179,18 +191,6 @@ def constrain(val, min_val, max_val):
     return min(max_val, max(min_val, val))
 
 
-def if_exist(object):
-    '''
-    :param object: object to check existance
-    :return: True if exists
-    '''
-    try:
-        object
-        return True
-    except:
-        return False
-
-
 def pairwise(iterable):
     '''
     :param iterable: list to iterate by 2
@@ -211,44 +211,32 @@ def split_path(path):
 
 
 def main():
-    custom_rects_list = []
-    path = None
-    goal_reached = False
-
     print("Initializing detect_markers")
     rospy.init_node('detect_markers', anonymous=True)
     print("Bring the aruco-ID in front of camera")
     detector = ArucoDetector()
 
-    if not if_exist(rrt_conn):
-        custom_x_range = detector.first_frame.shape[1]
-        custom_y_range = detector.first_frame.shape[0]
-        blurred_input = cv2.GaussianBlur(detector.first_frame, (5, 5), 0)
-        gray = cv2.cvtColor(blurred_input, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(gray, 150, 250, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        for c in contours:
-            rect = cv2.boundingRect(c)
-            if rect[2] < 60 or rect[3] < 80:
-                continue
-            custom_rects_list.append(rect)
-        custom_start = detector.robot_center_init
-        custom_env = rrt.Env(custom_x_range, custom_y_range, custom_rects_list)
-        rrt_conn = rrt.RrtConnect(custom_start, custom_goal, 60, 0.1, 5000, custom_env)
-        path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
+    while detector.first_frame is None:
+        if detector.first_frame is not None:
+            detector.init_scene()
+            custom_env = rrt.Env(detector.first_frame.shape[1], detector.first_frame.shape[0], detector.custom_rects_list)
+            rrt_conn = rrt.RrtConnect(detector.custom_start, detector.custom_goal, 60, 0.1, 5000, custom_env)
+            path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
+            robot_1_path, robot_2_path = split_path(path)
+            r1_index = 0
+            r2_index = 0
 
+    while True:
+        if r1_index > len(robot_1_path):
+            break
+        if detector.move_to_point(robot_1_path[r1_index], start_id):
+            r1_index += 1
+        if r2_index > len(robot_2_path):
+            break
+        if detector.move_to_point(robot_2_path[r2_index], goal_id):
+            r2_index += 1
 
-    if detector.follow_path(path):
-        goal_reached = True
-
-    # if detector.aruco_corners is not None:
-    #     if not if_exist(rrt_conn):
-    #         start_coords = detector.findArucoCoords(detector.aruco_corners)
-    #         rrt_conn = RrtConnect(start_coords, goal_coords, 50, 0.05, 5000)
-    #         detector.path = rrt_conn.planning()
-
-    while not goal_reached:
-        rospy.spin()
+    rospy.spin()
 
 
 if __name__ == '__main__':

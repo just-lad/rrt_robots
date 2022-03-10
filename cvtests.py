@@ -394,7 +394,7 @@ class RrtConnect:
         return math.hypot(dx, dy), math.atan2(dy, dx)
 
 
-def draw_path(path_to_draw, img):
+def draw_path(path_to_draw, img, (r, g, b)):
     '''
     :param path_to_draw: list with waypoints as [[x0,y0]...[x_goal,y_goal]]
     :param img: image to draw lines on
@@ -402,7 +402,7 @@ def draw_path(path_to_draw, img):
     '''
     paired_path = pairwise(path_to_draw)
     for i in range(0, len(paired_path)):
-         cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
+         cv2.line(img, paired_path[i][0], paired_path[i][1], (r, g, b), thickness=2)
     return img
 
 
@@ -462,6 +462,7 @@ def pairwise(iterable):
 
 def get_pose(aruco_list, id):
     '''
+    :param id: aruco id to get pose of
     :param aruco_list: list with aruco marker corners and ids [corners, ids]
     :return: aruco center
     '''
@@ -473,6 +474,10 @@ def get_pose(aruco_list, id):
 
 
 def split_path(path):
+    '''
+    :param path: path to split in two
+    :return: two lists, represents to paths to the central point
+    '''
     half = len(path)//2
     return path[:half], list(reversed(path[half:]))
 
@@ -489,7 +494,6 @@ def main():
         sys.exit("Could not read the image.")
     
     dsize = (int(0.7*img.shape[1]), int(0.7*img.shape[0]))
-    print(dsize)
 
     input_sized = cv2.resize(img, dsize)
     cropped_sized_input = input_sized[0:576, 60:830]
@@ -511,13 +515,15 @@ def main():
     custom_start = get_pose(corns_ids, start_id)
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 80, 0.01, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 40, 0.01, 5000, custom_env)
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
 
-    img_with_path = draw_path(path, cropped_sized_input)
+    draw_path(robot_1_path, cropped_sized_input, (0, 0, 255))
+    draw_path(robot_2_path, cropped_sized_input, (0, 255, 0))
+    draw_path((robot_1_path[len(robot_1_path)-1], robot_2_path[len(robot_2_path)-1]), cropped_sized_input, (255, 0, 0))
 
-    cv2.imshow("Display detected robot, obstacles and path", img_with_path)
+    cv2.imshow("Display detected robot, obstacles and path", cropped_sized_input)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
