@@ -17,7 +17,7 @@ class Utils:
     def __init__(self, env):
         self.env = env
 
-        self.delta = 30
+        self.delta = 80
         self.obs_circle = self.env.obs_circle
         self.obs_rectangle = self.env.obs_rectangle
         self.obs_boundary = self.env.obs_boundary

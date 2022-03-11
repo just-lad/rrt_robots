@@ -8,7 +8,7 @@ import os
 from itertools import tee, izip
 import cv2.aruco as aruco
 
-image_to_process = "6.jpg"
+image_to_process = "7.jpg"
 start_id = 2
 goal_id = 5
 
@@ -493,10 +493,10 @@ def main():
     if img is None:
         sys.exit("Could not read the image.")
     
-    dsize = (int(0.7*img.shape[1]), int(0.7*img.shape[0]))
+    #dsize = (int(0.7*img.shape[1]), int(0.7*img.shape[0]))
 
-    input_sized = cv2.resize(img, dsize)
-    cropped_sized_input = input_sized[0:576, 60:830]
+    #input_sized = cv2.resize(img, dsize)w
+    cropped_sized_input = img[0:720, 80:1180]
     custom_x_range = cropped_sized_input.shape[1]
     custom_y_range = cropped_sized_input.shape[0]
     blurred_input = cv2.GaussianBlur(cropped_sized_input, (5, 5), 0)
@@ -506,7 +506,7 @@ def main():
     contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     for c in contours:
         x,y,w,h = cv2.boundingRect(c)
-        if (50 < w < 200) and (50 < h < 200):
+        if (80 < w < 300) and (80 < h < 300):
             rect = x, y, w, h
             custom_rects_list.append(rect)
             cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
@@ -515,7 +515,7 @@ def main():
     custom_start = get_pose(corns_ids, start_id)
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 40, 0.01, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 100, 0.01, 5000, custom_env)
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
 
