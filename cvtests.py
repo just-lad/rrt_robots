@@ -519,9 +519,12 @@ def main():
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
 
-    draw_path(robot_1_path, cropped_sized_input, (0, 0, 255))
-    draw_path(robot_2_path, cropped_sized_input, (0, 255, 0))
-    draw_path((robot_1_path[len(robot_1_path)-1], robot_2_path[len(robot_2_path)-1]), cropped_sized_input, (255, 0, 0))
+    draw_path(robot_1_path, cropped_sized_input, (0, 255, 30))
+    draw_path(robot_2_path, cropped_sized_input, (30, 255, 0))
+    draw_path((robot_1_path[len(robot_1_path)-1], robot_2_path[len(robot_2_path)-1]), cropped_sized_input, (0, 0, 255))
+    docking_point = ((robot_1_path[len(robot_1_path) - 1][0] + robot_2_path[len(robot_2_path) - 1][0]) // 2,
+                     (robot_1_path[len(robot_1_path) - 1][1] + robot_2_path[len(robot_2_path) - 1][1]) // 2)
+    cv2.circle(cropped_sized_input, docking_point, 20, (0, 0, 255), thickness=3)
 
     cv2.imshow("Display detected robot, obstacles and path", cropped_sized_input)
     cv2.waitKey(0)

@@ -90,6 +90,12 @@ class ArucoDetector:
         return output, [corners, ids]
 
     def write_command(self, left, right, time):
+        '''
+        :param left: left motor signal, float, 0 to 1
+        :param right: right motor signal, float, 0 to 1
+        :param time: execution of the command time
+        :return:
+        '''
         self.command.left_motor = left
         self.command.right_motor = right
         self.command.exec_time = time

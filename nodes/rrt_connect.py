@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 
 import math
-import sys
-import cv2
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import os
 import numpy as np
 
 
