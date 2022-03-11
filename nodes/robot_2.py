@@ -168,7 +168,7 @@ def main():
     rospy.init_node('Robot_1')
     rospy.Subscriber('/move_commands', move_command_struct, mover.ISR_commander)
 
-    while not rospy.shutdown():
+    while not rospy.is_shutdown():
         while mover.seek(robot, mover.robotID):
             pass
 
