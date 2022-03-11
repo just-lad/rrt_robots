@@ -4,7 +4,7 @@ import roslib
 import rospy
 from jetbot import Robot
 from std_msgs.msg import String
-from rrt_robots.msg import move_command_struct
+from listen.msg import move_command_struct
 
 
 class RosCommander:
@@ -19,6 +19,7 @@ class RosCommander:
         self.left = command.left_motor
         self.right = command.right_motor
         self.exec_time = command.exec_time
+        rospy.loginfo(command.angle)
         self.new_command = True
 
 
@@ -28,7 +29,7 @@ def main():
 
     rospy.init_node('Robot_1')
 
-    while not rospy.is_shutdown:
+    while not rospy.is_shutdown():
         if ros.new_command:
             robot.set_motors(ros.left, ros.right)
             rospy.sleep(ros.exec_time)
@@ -36,8 +37,6 @@ def main():
             ros.new_command = False
         else:
             pass
-
-    rospy.spin()
 
 
 if __name__ == '__main__':

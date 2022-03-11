@@ -1,14 +1,12 @@
 #!/usr/bin/env python
-import math
-
 import rospy
 import cv2
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2.aruco as aruco
-from aruco_detection.msg import move_command_struct
-from math import atan2, sqrt, degrees, radians
+from rrt_robots.msg import move_command_struct
+from math import atan2, sqrt, degrees, radians, pi
 
 goal_coords = [(300, 300),
                (600, 600)]
@@ -26,7 +24,7 @@ class ArucoDetector:
         self.point_reached = False
         self.goal_i = 0
         self.path = None
-        self.max_speed = 0.3
+        self.max_speed = 0.36
         self.turn_time = 0.1
         self.forw_time = 0.3
 
@@ -39,11 +37,6 @@ class ArucoDetector:
 
         markers_img, self.aruco_corners = self.draw_aruco(cv_image)
 
-        try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
-        except CvBridgeError as e:
-            print(e)
-
         if self.point_reached:
             if self.goal_i == 0:
                 self.goal_i = 1
@@ -53,6 +46,13 @@ class ArucoDetector:
             pass
         if self.move_to_point(goal_coords[self.goal_i]):
             self.point_reached = True
+
+        cv2.circle(markers_img, goal_coords[self.goal_i], 30, (0, 0, 255), thickness=3)
+
+        try:
+            self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
+        except CvBridgeError as e:
+            print(e)
 
 
     def findArucoCoords(self, bbox):
@@ -99,17 +99,18 @@ class ArucoDetector:
 
         angle_delta = angle_between_three(robot_coords[5], robot_coords[4], point)
         dist_to_goal = distance_between_points(robot_coords[4], point)
+        self.command.angle = angle_delta
 
-        if dist_to_goal < 60:
+        if dist_to_goal < 30:
             self.write_command(0, 0, self.forw_time)
             return True
 
-        if angle_delta > 0.3 or abs(angle_delta - 2*math.pi) > 0.3:
-            if angle_delta - math.pi > 0:
-                self.write_command(self.max_speed, -self.max_speed, self.turn_time)
+        if angle_delta > 0.3 and abs(angle_delta - 2*pi) > 0.3:
+            if angle_delta < pi:
+                self.write_command(-self.max_speed, self.max_speed, self.turn_time)
                 return False
             else:
-                self.write_command(-self.max_speed, self.max_speed, self.turn_time)
+                self.write_command(self.max_speed, -self.max_speed, self.turn_time)
                 return False
         else:
             self.write_command(self.max_speed, self.max_speed, self.forw_time)
@@ -153,7 +154,7 @@ def main():
 
     rate = rospy.Rate(0.5)
     while not rospy.is_shutdown():
-        detector.command_pub(detector.command)
+        detector.command_pub.publish(detector.command)
         rate.sleep()
     rospy.spin()
 
