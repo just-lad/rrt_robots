@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import math
 
 import rospy
 import cv2
@@ -12,7 +13,8 @@ from math import atan2, sqrt, degrees, radians
 goal_coords = [(300, 300),
                (600, 600)]
 
-class Aruco_detector:
+
+class ArucoDetector:
 
     def __init__(self):
         self.image_pub = rospy.Publisher("/detected_markers", Image, queue_size=1)
@@ -24,6 +26,9 @@ class Aruco_detector:
         self.point_reached = False
         self.goal_i = 0
         self.path = None
+        self.max_speed = 0.3
+        self.turn_time = 0.1
+        self.forw_time = 0.3
 
     def callback(self, data):
 
@@ -33,7 +38,6 @@ class Aruco_detector:
             print(e)
 
         markers_img, self.aruco_corners = self.draw_aruco(cv_image)
-        # rospy.loginfo(self.aruco_corners)
 
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
@@ -49,7 +53,6 @@ class Aruco_detector:
             pass
         if self.move_to_point(goal_coords[self.goal_i]):
             self.point_reached = True
-        #rospy.loginfo(goal_coords[self.goal_i])
 
 
     def findArucoCoords(self, bbox):
@@ -86,14 +89,32 @@ class Aruco_detector:
         output = aruco.drawDetectedMarkers(img, corners, ids)  # detect the Aruco markers and display its aruco id.
         return output, [corners, ids]
 
+    def write_command(self, left, right, time):
+        self.command.left_motor = left
+        self.command.right_motor = right
+        self.command.exec_time = time
+
     def move_to_point(self, point):
         robot_coords = self.findArucoCoords(self.aruco_corners[0][0])
 
-        self.command.angle_delta = angle_between_three(robot_coords[5], robot_coords[4], point)
-        self.command.dist_to_goal = distance_between_points(robot_coords[4], point)
+        angle_delta = angle_between_three(robot_coords[5], robot_coords[4], point)
+        dist_to_goal = distance_between_points(robot_coords[4], point)
 
-        self.command_pub.publish(self.command)
-        return False
+        if dist_to_goal < 60:
+            self.write_command(0, 0, self.forw_time)
+            return True
+
+        if angle_delta > 0.3 or abs(angle_delta - 2*math.pi) > 0.3:
+            if angle_delta - math.pi > 0:
+                self.write_command(self.max_speed, -self.max_speed, self.turn_time)
+                return False
+            else:
+                self.write_command(-self.max_speed, self.max_speed, self.turn_time)
+                return False
+        else:
+            self.write_command(self.max_speed, self.max_speed, self.forw_time)
+            return False
+
 
 def angle_between_three(p1, p2, p3):
     '''
@@ -109,6 +130,7 @@ def angle_between_three(p1, p2, p3):
     deg2 = (360 + degrees(atan2(x3 - x2, y3 - y2))) % 360
     return radians(deg2 - deg1) if deg1 <= deg2 else radians(360 - (deg1 - deg2))
 
+
 def distance_between_points(point1, point2):
     '''
     :param point1: some point (x, y)
@@ -118,28 +140,21 @@ def distance_between_points(point1, point2):
     return round(sqrt(
             ((point1[0] - point2[0]) ** 2) + ((point2[1] - point2[1]) ** 2)), 0)
 
+
 def constrain(val, min_val, max_val):
     return min(max_val, max(min_val, val))
 
-def if_exist(object):
-    try:
-        object
-        return True
-    except:
-        return False
 
 def main():
     print("Initializing detect_markers")
     rospy.init_node('detect_markers', anonymous=True)
     print("Bring the aruco-ID in front of camera")
-    detector = Aruco_detector()
+    detector = ArucoDetector()
 
-    # if detector.aruco_corners is not None:
-    #     if not if_exist(rrt_conn):
-    #         start_coords = detector.findArucoCoords(detector.aruco_corners)
-    #         rrt_conn = RrtConnect(start_coords, goal_coords, 50, 0.05, 5000)
-    #         detector.path = rrt_conn.planning()
-
+    rate = rospy.Rate(0.5)
+    while not rospy.is_shutdown():
+        detector.command_pub(detector.command)
+        rate.sleep()
     rospy.spin()
 
 
