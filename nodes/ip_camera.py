@@ -21,7 +21,7 @@ class IPCamera(object):
 
 
 def crop(frame_to_crop):
-    cropped_frame = frame_to_crop[0:720 , 150:1150]
+    cropped_frame = frame_to_crop[0:720, 150:1150]
     return cropped_frame
 
 

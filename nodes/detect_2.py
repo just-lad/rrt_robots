@@ -5,7 +5,7 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2.aruco as aruco
-from aruco_detection.msg import move_command_struct
+from rrt_robots.msg import move_command_struct
 from math import atan2, sqrt, degrees, radians, pi
 import rrt_connect as rrt
 from itertools import tee, izip
@@ -18,18 +18,23 @@ goal_id = 5
 class ArucoDetector:
 
     def __init__(self):
+        self.should_darw = True
+
         self.image_pub = rospy.Publisher("/detected_markers", Image, queue_size=1)
         self.image_path_pub = rospy.Publisher("/marks_obs_path", Image, queue_size=1)
         self.command_pub = rospy.Publisher("/move_commands", move_command_struct, queue_size=1)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/camera/image_raw/", Image, self.callback)
         self.command = move_command_struct()
+
         self.aruco_corners = None
         self.first_frame = None
+
         self.custom_start = None
         self.custom_goal = None
         self.path = None
-        self.custom_rects_list = None
+        self.custom_rects_list = []
+
         self.max_speed = 0.36
         self.turn_time = 0.1
         self.forw_time = 0.3
@@ -43,13 +48,14 @@ class ArucoDetector:
         _, thresh = cv2.threshold(gray, 150, 250, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
-            rect = cv2.boundingRect(c)
-            if rect[2] < 60 or rect[3] < 80:
+            x, y, w, h = cv2.boundingRect(c)
+            if (80 < w < 300) and (80 < h < 300):
+                rect = x, y, w, h
                 self.custom_rects_list.append(rect)
         start = get_pose(self.aruco_corners, start_id)
         goal = get_pose(self.aruco_corners, goal_id)
-        self.custom_start = start[4]
-        self.custom_goal = goal[4]
+        self.custom_start = (int(start[4][0]), int(start[4][1]))
+        self.custom_goal = (int(goal[4][0]), int(goal[4][1]))
 
     def callback(self, data):
         """
@@ -63,16 +69,23 @@ class ArucoDetector:
 
         if self.first_frame is None and cv_image is not None:
             self.first_frame = cv_image
+        if self.should_darw:
+            markers_img, self.aruco_corners = draw_aruco(cv_image)
 
-        markers_img, self.aruco_corners = draw_aruco(cv_image)
+            if self.path is not None:
+                image_with_path = self.draw_path(markers_img)
+                for i in range(len(self.custom_rects_list)):
+                    x, y, w, h = self.custom_rects_list[i]
+                    cv2.rectangle(image_with_path, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        if self.path is not None:
-            image_with_path = self.draw_path(markers_img)
-
-        try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
-        except CvBridgeError as e:
-            print(e)
+            try:
+                self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
+                if self.path is not None:
+                    self.image_path_pub.publish(self.bridge.cv2_to_imgmsg(image_with_path, "bgr8"))
+            except CvBridgeError as e:
+                print(e)
+        else:
+            _, self.aruco_corners = draw_aruco(cv_image)
 
     def draw_path(self, img):
         """
@@ -81,9 +94,10 @@ class ArucoDetector:
         """
         paired_path = pairwise(self.path)
         for i in range(len(paired_path)):
-            cv2.line(img, paired_path[i][0][1], (0, 255, 0), thickness=2)
+            cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
         path1, path2 = split_path(self.path)
-        docking_point = (path1[len(path1)-1], path2[len(path2)-1])
+        docking_point = ((path1[len(path1) - 1][0] + path2[len(path2) - 1][0]) // 2,
+                         (path1[len(path1) - 1][1] + path2[len(path2) - 1][1]) // 2)
         cv2.circle(img, docking_point, 20, (0, 0, 255), thickness=3)
         return img
 
@@ -237,34 +251,51 @@ def main():
     detector = ArucoDetector()
 
     while True:
-        if detector.first_frame is not None:
+        if detector.first_frame is not None and detector.aruco_corners is not None:
             detector.init_scene()
             custom_env = rrt.Env(detector.first_frame.shape[1], detector.first_frame.shape[0], detector.custom_rects_list)
-            rrt_conn = rrt.RrtConnect(detector.custom_start, detector.custom_goal, 60, 0.1, 5000, custom_env)
+            rospy.loginfo(detector.custom_rects_list)
+            rrt_conn = rrt.RrtConnect(detector.custom_start, detector.custom_goal, 30, 0.6, 5000, custom_env)
             detector.path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
+            if detector.path is None:
+                rospy.loginfo("Path is none, are u retarded?")
+            rospy.loginfo(detector.custom_start)
+            rospy.loginfo(detector.custom_goal)
             robot_1_path, robot_2_path = split_path(detector.path)
             r1_index = 0
             r2_index = 0
             break
 
-    while True:
+    rate = rospy.Rate(0.5)
+    while not rospy.is_shutdown():
         if r1_index > len(robot_1_path):
             break
         if detector.move_to_point(robot_1_path[r1_index], start_id):
             if r1_index < len(robot_1_path) - 1:
                 r1_index += 1
             elif r2_index == len(robot_2_path) - 1:
-                break
+                detector.command.left_motor = 0
+                detector.command.right_motor = 0
             else:
-                pass
+                detector.command.left_motor = 0
+                detector.command.right_motor = 0
+
+        detector.command_pub.publish(detector.command)
 
         if detector.move_to_point(robot_2_path[r2_index], goal_id):
             if r2_index < len(robot_2_path) - 1:
+                detector.command_pub.publish(detector.command)
                 r2_index += 1
             elif r1_index == len(robot_1_path) - 1:
-                break
+                detector.command.left_motor = 0
+                detector.command.right_motor = 0
             else:
-                pass
+                detector.command.left_motor = 0
+                detector.command.right_motor = 0
+
+        detector.command_pub.publish(detector.command)
+
+        rate.sleep()
 
     rospy.spin()
 
