@@ -160,7 +160,6 @@ class RrtConnect:
 
     def planning(self):
         for i in range(self.iter_max):
-            #print("hello + " + str(i))
             node_rand = self.generate_random_node(self.s_goal, self.goal_sample_rate)
             node_near = self.nearest_neighbor(self.V1, node_rand)
             node_new = self.new_state(node_near, node_rand)
