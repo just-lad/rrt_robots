@@ -63,6 +63,7 @@ class ArucoDetector:
         :param data: data received from subscriber
         :return: nothing, just processes data and write it to self
         """
+
         cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
         if self.first_frame is None and cv_image is not None:

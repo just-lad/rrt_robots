@@ -92,7 +92,7 @@ def find_aruco_cords(bbox):
     mid_left = ((topl[0] + botl[0]) // 2, (topl[1] + botl[1]) // 2)
     mid_right = ((topr[0] + botr[0]) // 2, (topr[1] + botr[1]) // 2)
 
-    coords = [topl,       # 0 (X Y)
+    cords = [topl,        # 0 (X Y)
               topr,       # 1 (X Y)
               botl,       # 2 (X Y)
               botr,       # 3 (X Y)
@@ -102,7 +102,7 @@ def find_aruco_cords(bbox):
               mid_left,   # 7 (X Y)
               mid_right]  # 8 (X Y)
 
-    return coords
+    return cords
 
 
 def draw_aruco(img):

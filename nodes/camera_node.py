@@ -4,15 +4,15 @@ import sys
 import cv2
 import rospy
 from sensor_msgs.msg import Image
-from cv_bridge import CvBridge, CvBridgeError 
+from cv_bridge import CvBridge, CvBridgeError
 
 
 class IPCamera(object):
-    def __init__(self, url):
+    def __init__(self, camera_url):
         try:
-            self.vcap = cv2.VideoCapture(url)
+            self.vcap = cv2.VideoCapture(camera_url)
         except:
-            rospy.logerr('Unable to open ip camera stream: ' + str(url))
+            rospy.logerr('Unable to open ip camera stream: ' + str(camera_url))
             sys.exit()
         self.image_pub = rospy.Publisher("/camera/image_raw", Image, queue_size=1)
         self.bridge = CvBridge()
@@ -27,11 +27,11 @@ if __name__ == '__main__':
 
     url = 'http://admin:admin@192.168.0.94:8008'
     rospy.init_node('ip_camera', anonymous=True)
-    
+
     print 'Opening ip camera'
     ip_camera = IPCamera(url)
     print 'Successfully opened ip camera'
-    
+
     while not rospy.is_shutdown() and ip_camera.vcap.isOpened():
         ret, frame = ip_camera.vcap.read()
         if not ret:
