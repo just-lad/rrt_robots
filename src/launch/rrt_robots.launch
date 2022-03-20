@@ -5,7 +5,7 @@
     <node name="ip_camera" pkg="rrt_robots" type="ip_camera.py"/>
   
     <!-- detect markers node luanch -->
-    <node name="detect_markers" pkg="rrt_robots" type="detect_2.py"/>
+    <node name="detect_markers" pkg="rrt_robots" type="master_node.py"/>
 
     <!-- viewer node luanch -->
     <node name="rqt_image_view" pkg="rqt_image_view" type="rqt_image_view" respawn="false" output="screen"/>

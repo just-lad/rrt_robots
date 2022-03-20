@@ -1,11 +1,9 @@
 #!/usr/bin/env python
+
 import sys
 import cv2
-import argparse
-import roslib
 import rospy
-from sensor_msgs.msg import Image 
-from std_msgs.msg import String
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError 
 
 
