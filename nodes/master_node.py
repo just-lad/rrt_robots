@@ -5,7 +5,6 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from math import pi
-
 from rrt_robots.msg import move_command_struct
 
 import rrt_connect as rrt
@@ -21,7 +20,6 @@ class ArucoDetector:
     def __init__(self):
         self.draw_flag = True
 
-        self.image_pub = rospy.Publisher("/detected_markers", Image, queue_size=1)
         self.image_path_pub = rospy.Publisher("/marks_obs_path", Image, queue_size=1)
         self.command_pub = rospy.Publisher("/move_commands", move_command_struct, queue_size=1)
         self.bridge = CvBridge()
@@ -34,6 +32,8 @@ class ArucoDetector:
         self.custom_start = None
         self.custom_goal = None
         self.path = None
+        self.tree1 = None
+        self.tree2 = None
         self.custom_obstacles_list = []
 
         self.max_speed = 0.36
@@ -63,10 +63,7 @@ class ArucoDetector:
         :param data: data received from subscriber
         :return: nothing, just processes data and write it to self
         """
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        except CvBridgeError as e:
-            print(e)
+        cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
         if self.first_frame is None and cv_image is not None:
             self.first_frame = cv_image
@@ -74,33 +71,16 @@ class ArucoDetector:
             markers_img, self.aruco_corners = ut.draw_aruco(cv_image)
 
             if self.path is not None:
-                image_with_path = self.draw_path(markers_img)
-                for i in range(len(self.custom_obstacles_list)):
-                    x, y, w, h = self.custom_obstacles_list[i]
-                    cv2.rectangle(image_with_path, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                ut.draw_whole_tree(self.tree1, markers_img, (255, 0, 0))
+                ut.draw_whole_tree(self.tree2, markers_img, (255, 0, 0))
+                ut.draw_path(self.path, markers_img, (0, 255, 0))
+                ut.draw_obstacles(self.custom_obstacles_list, markers_img, (0, 255, 0))
 
-            try:
-                self.image_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
-                if self.path is not None:
-                    self.image_path_pub.publish(self.bridge.cv2_to_imgmsg(image_with_path, "bgr8"))
-            except CvBridgeError as e:
-                print(e)
+            if self.path is not None:
+                self.image_path_pub.publish(self.bridge.cv2_to_imgmsg(markers_img, "bgr8"))
+
         else:
             _, self.aruco_corners = ut.draw_aruco(cv_image)
-
-    def draw_path(self, img):
-        """
-        :param img: img to draw on
-        :return: img with path and docking point
-        """
-        paired_path = ut.pairwise(self.path)
-        for i in range(len(paired_path)):
-            cv2.line(img, paired_path[i][0], paired_path[i][1], (0, 255, 0), thickness=2)
-        path1, path2 = ut.split_path(self.path)
-        docking_point = ((path1[len(path1) - 1][0] + path2[len(path2) - 1][0]) // 2,
-                         (path1[len(path1) - 1][1] + path2[len(path2) - 1][1]) // 2)
-        cv2.circle(img, docking_point, 20, (0, 0, 255), thickness=3)
-        return img
 
     def move_to_point(self, point, robot_id):
         """
@@ -122,7 +102,7 @@ class ArucoDetector:
                 return True
 
             if angle_delta > 0.3 and abs(angle_delta - 2 * pi) > 0.3:
-                if angle_delta < pi:
+                if pi > angle_delta:
                     self.write_command(-self.max_speed, self.max_speed, self.turn_time)
                     return False
                 else:
@@ -146,7 +126,7 @@ class ArucoDetector:
 
 def main():
     print("Initializing detect_markers")
-    rospy.init_node('detect_markers', anonymous=True)
+    rospy.init_node('Master_node', anonymous=True)
     print("Bring the aruco-ID in front of camera")
     detector = ArucoDetector()
 
@@ -158,8 +138,8 @@ def main():
                                  detector.custom_obstacles_list)
             rrt_conn = rrt.RrtConnect(detector.custom_start, detector.custom_goal, 30, 0.6, 5000, custom_env)
             detector.path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
-            if detector.path is None:
-                pass
+            detector.tree1 = rrt_conn.V1
+            detector.tree2 = rrt_conn.V2
             robot_1_path, robot_2_path = ut.split_path(detector.path)
             r1_index = 0
             r2_index = 0

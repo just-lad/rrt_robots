@@ -482,20 +482,25 @@ def split_path(path):
     return path[:half], list(reversed(path[half:]))
 
 
+def draw_visited(node_list, image, (b, g, r)):
+
+    for k in range(len(node_list)):
+        if k < len(node_list):
+            if node_list[k].parent:
+                cv2.line(image,
+                         (int(node_list[k].x), int(node_list[k].y)),
+                         (int(node_list[k].parent.x), int(node_list[k].parent.y)),
+                         (b, g, r),
+                         thickness=2)
+
+
 def main():
     custom_rects_list = []
-    custom_x_range = None
-    custom_y_range = None
-    custom_start = None
-    custom_goal = None
     
     img = cv2.imread(cv2.samples.findFile(image_to_process))
     if img is None:
         sys.exit("Could not read the image.")
-    
-    #dsize = (int(0.7*img.shape[1]), int(0.7*img.shape[0]))
 
-    #input_sized = cv2.resize(img, dsize)w
     cropped_sized_input = img[0:720, 80:1180]
     custom_x_range = cropped_sized_input.shape[1]
     custom_y_range = cropped_sized_input.shape[0]
@@ -515,13 +520,17 @@ def main():
     custom_start = get_pose(corns_ids, start_id)
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 100, 0.01, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 50, 0.9, 5000, custom_env)
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
+
+    draw_visited(list(rrt_conn.V1), cropped_sized_input, (255, 0, 0))
+    draw_visited(list(rrt_conn.V2), cropped_sized_input, (255, 0, 0))
 
     draw_path(robot_1_path, cropped_sized_input, (0, 255, 30))
     draw_path(robot_2_path, cropped_sized_input, (30, 255, 0))
     draw_path((robot_1_path[len(robot_1_path)-1], robot_2_path[len(robot_2_path)-1]), cropped_sized_input, (0, 0, 255))
+
     docking_point = ((robot_1_path[len(robot_1_path) - 1][0] + robot_2_path[len(robot_2_path) - 1][0]) // 2,
                      (robot_1_path[len(robot_1_path) - 1][1] + robot_2_path[len(robot_2_path) - 1][1]) // 2)
     cv2.circle(cropped_sized_input, docking_point, 20, (0, 0, 255), thickness=3)

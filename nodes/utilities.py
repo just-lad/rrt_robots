@@ -4,20 +4,77 @@ from math import atan2, sqrt, degrees, radians
 from itertools import tee, izip
 
 
-def get_pose(aruco_list, id):
+def draw_obstacles(obstacles_list, image, (b, g, r)):
     """
-    :param id: aruco id to get pose of
+    :param obstacles_list: obstacles to draw in format (x, y, width, heights)
+    :param image: image to draw on
+    :return: image with obstacles
+    """
+    for i in range(len(obstacles_list)):
+        x, y, w, h = obstacles_list[i]
+        cv2.rectangle(image,
+                      (x, y),
+                      (x + w, y + h),
+                      (b, g, r),
+                      thickness=2)
+    return image
+
+
+def draw_path(path, image, (b, g, r)):
+    """
+    :param path: path to draw
+    :param image: img to draw on
+    :return: image with path and docking point
+    """
+    paired_path = pairwise(path)
+    for i in range(len(paired_path)):
+        cv2.line(image,
+                 paired_path[i][0],
+                 paired_path[i][1],
+                 (0, 255, 0),
+                 thickness=2)
+    path1, path2 = split_path(path)
+    docking_point = ((path1[len(path1) - 1][0] + path2[len(path2) - 1][0]) // 2,
+                     (path1[len(path1) - 1][1] + path2[len(path2) - 1][1]) // 2)
+    cv2.circle(image,
+               docking_point,
+               20,
+               (b, g, r),
+               thickness=3)
+    return image
+
+
+def draw_whole_tree(node_list, image, (b, g, r)):
+    """
+    :param node_list: list of nodes from rrt
+    :param image: image to draw on
+    :return: image with tree
+    """
+    for k in range(len(node_list)):
+        if k < len(node_list):
+            if node_list[k].parent:
+                cv2.line(image,
+                         (int(node_list[k].x), int(node_list[k].y)),
+                         (int(node_list[k].parent.x), int(node_list[k].parent.y)),
+                         (b, g, r),
+                         thickness=2)
+    return image
+
+
+def get_pose(aruco_list, aruco_id):
+    """
+    :param aruco_id: aruco id to get pose of
     :param aruco_list: list with aruco marker corners and ids [corners, ids]
     :return: aruco center
     """
     for ids in range(len(aruco_list[1])):
-        if aruco_list[1][ids] == id:
-            aruco_coords = find_aruco_coords(aruco_list[0][ids])
-            return aruco_coords
+        if aruco_list[1][ids] == aruco_id:
+            aruco_cords = find_aruco_cords(aruco_list[0][ids])
+            return aruco_cords
     return None
 
 
-def find_aruco_coords(bbox):
+def find_aruco_cords(bbox):
     """
     :param bbox: list with aruco corners
     :return: list of coordinates
