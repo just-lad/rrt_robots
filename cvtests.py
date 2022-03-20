@@ -520,7 +520,7 @@ def main():
     custom_start = get_pose(corns_ids, start_id)
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
-    rrt_conn = RrtConnect(custom_start, custom_goal, 50, 0.9, 5000, custom_env)
+    rrt_conn = RrtConnect(custom_start, custom_goal, 30, 0.1, 5000, custom_env)
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
 
