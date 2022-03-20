@@ -2,7 +2,7 @@
 <launch>
 
     <!-- ip camera node luanch -->
-    <node name="ip_camera" pkg="rrt_robots" type="ip_camera.py"/>
+    <node name="ip_camera" pkg="rrt_robots" type="camera_node.py"/>
   
     <!-- detect markers node luanch -->
     <node name="detect_markers" pkg="rrt_robots" type="master_node.py"/>
