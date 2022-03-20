@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from twisted.internet.process import detector
 
 import rospy
 import cv2
@@ -10,12 +11,14 @@ from rrt_robots.msg import move_command_struct
 import rrt_connect as rrt
 import utilities as ut
 
-distance_threshold = 20
+distance_threshold = 30
+angle_threshold = 0.3
+delay = 2.0
 start_id = 2
 goal_id = 5
 
 
-class ArucoDetector:
+class RobotPlanner:
 
     def __init__(self):
         self.draw_flag = True
@@ -29,8 +32,6 @@ class ArucoDetector:
         self.aruco_corners = None
         self.first_frame = None
 
-        self.custom_start = None
-        self.custom_goal = None
         self.path = None
         self.tree1 = None
         self.tree2 = None
@@ -40,7 +41,7 @@ class ArucoDetector:
         self.turn_time = 0.1
         self.forward_time = 0.3
 
-    def init_scene(self):
+    def initialize_scene(self):
         """
         :return: void
         """
@@ -55,8 +56,17 @@ class ArucoDetector:
                 self.custom_obstacles_list.append(rect)
         start = ut.get_pose(self.aruco_corners, start_id)
         goal = ut.get_pose(self.aruco_corners, goal_id)
-        self.custom_start = (int(start[4][0]), int(start[4][1]))
-        self.custom_goal = (int(goal[4][0]), int(goal[4][1]))
+        robot_start = (int(start[4][0]), int(start[4][1]))
+        robot_goal = (int(goal[4][0]), int(goal[4][1]))
+
+        custom_env = rrt.Env(self.first_frame.shape[1],
+                             self.first_frame.shape[0],
+                             self.custom_obstacles_list)
+        rrt_conn = rrt.RrtConnect(robot_start, robot_goal, 30, 0.6, 5000, custom_env)
+        self.path = rrt_conn.planning()
+        self.tree1 = rrt_conn.V1
+        self.tree2 = rrt_conn.V2
+        return True
 
     def callback(self, data):
         """
@@ -68,6 +78,7 @@ class ArucoDetector:
 
         if self.first_frame is None and cv_image is not None:
             self.first_frame = cv_image
+
         if self.draw_flag:
             markers_img, self.aruco_corners = ut.draw_aruco(cv_image)
 
@@ -98,20 +109,32 @@ class ArucoDetector:
             angle_delta = ut.angle_between_three(robot_cords[5], robot_cords[4], point)
             dist_to_goal = ut.distance_between_points(robot_cords[4], point)
 
-            if dist_to_goal < 30:
-                self.write_command(0, 0, self.forward_time)
+            if dist_to_goal < distance_threshold:
+                self.stop()
                 return True
 
-            if angle_delta > 0.3 and abs(angle_delta - 2 * pi) > 0.3:
+            if angle_delta > angle_threshold and abs(angle_delta - 2 * pi) > angle_threshold:
                 if pi > angle_delta:
-                    self.write_command(-self.max_speed, self.max_speed, self.turn_time)
+                    self.turn_left()
                     return False
                 else:
-                    self.write_command(self.max_speed, -self.max_speed, self.turn_time)
+                    self.turn_right()
                     return False
             else:
-                self.write_command(self.max_speed, self.max_speed, self.forward_time)
+                self.go_forward()
                 return False
+
+    def turn_left(self):
+        self.write_command(-self.max_speed, self.max_speed, self.turn_time)
+
+    def turn_right(self):
+        self.write_command(self.max_speed, -self.max_speed, self.turn_time)
+
+    def go_forward(self):
+        self.write_command(self.max_speed, self.max_speed, self.forward_time)
+
+    def stop(self):
+        self.write_command(0, 0, self.forward_time)
 
     def write_command(self, left, right, time):
         """
@@ -124,55 +147,58 @@ class ArucoDetector:
         self.command.right_motor = right
         self.command.exec_time = time
 
+    def stop_robots(self):
+        """
+        :return: True if success
+        """
+        self.write_command(0, 0, 1)
+        self.command.robot_ID = start_id
+        self.command_pub.publish(self.command)
+        self.command.robot_ID = goal_id
+        self.command_pub.publish(self.command)
+        return True
+
 
 def main():
-    print("Initializing detect_markers")
+    print("Initializing master_node")
     rospy.init_node('Master_node', anonymous=True)
-    print("Bring the aruco-ID in front of camera")
-    detector = ArucoDetector()
+    print("Master launched")
+    planner = RobotPlanner()
 
     while True:
-        if detector.first_frame is not None and detector.aruco_corners is not None:
-            detector.init_scene()
-            custom_env = rrt.Env(detector.first_frame.shape[1],
-                                 detector.first_frame.shape[0],
-                                 detector.custom_obstacles_list)
-            rrt_conn = rrt.RrtConnect(detector.custom_start, detector.custom_goal, 30, 0.6, 5000, custom_env)
-            detector.path = rrt_conn.planning()  # list of tuples [(x1, y1), (x2, y2)... (x_goal, y_goal)]
-            detector.tree1 = rrt_conn.V1
-            detector.tree2 = rrt_conn.V2
-            robot_1_path, robot_2_path = ut.split_path(detector.path)
+        if planner.first_frame is not None and planner.aruco_corners is not None:
+            planner.initialize_scene()
+            robot_1_path, robot_2_path = ut.split_path(planner.path)
             r1_index = 0
             r2_index = 0
             break
 
-    rate = rospy.Rate(0.5)
+    rate = rospy.Rate(1/delay)
     while not rospy.is_shutdown():
 
-        if detector.move_to_point(robot_1_path[r1_index], start_id):
+        if planner.move_to_point(robot_1_path[r1_index], start_id):
             if r1_index < len(robot_1_path) - 1:
                 r1_index += 1
             elif r2_index == len(robot_2_path) - 1:
-                detector.command.left_motor = 0
-                detector.command.right_motor = 0
+                planner.stop()
             else:
-                detector.command.left_motor = 0
-                detector.command.right_motor = 0
+                planner.stop()
 
-        detector.command_pub.publish(detector.command)
+        planner.command_pub.publish(planner.command)
 
-        if detector.move_to_point(robot_2_path[r2_index], goal_id):
+        if planner.move_to_point(robot_2_path[r2_index], goal_id):
             if r2_index < len(robot_2_path) - 1:
-                detector.command_pub.publish(detector.command)
                 r2_index += 1
             elif r1_index == len(robot_1_path) - 1:
-                detector.command.left_motor = 0
-                detector.command.right_motor = 0
+                planner.stop()
             else:
-                detector.command.left_motor = 0
-                detector.command.right_motor = 0
+                planner.stop()
 
-        detector.command_pub.publish(detector.command)
+        planner.command_pub.publish(planner.command)
+
+        if r1_index == len(robot_1_path) - 1 and r2_index == len(robot_2_path) - 1:
+            planner.stop_robots()
+            break
 
         rate.sleep()
 
