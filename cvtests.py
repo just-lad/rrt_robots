@@ -8,7 +8,7 @@ import os
 from itertools import tee, izip
 import cv2.aruco as aruco
 
-image_to_process = "7.jpg"
+image_to_process = "8.jpg"
 start_id = 2
 goal_id = 5
 
@@ -511,7 +511,7 @@ def main():
     contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     for c in contours:
         x,y,w,h = cv2.boundingRect(c)
-        if (80 < w < 300) and (80 < h < 300):
+        if ((70 < w < 100) and (100 < h < 200)) or ((100 < w < 200) and (70 < h < 100)):
             rect = x, y, w, h
             custom_rects_list.append(rect)
             cv2.rectangle(cropped_sized_input,(x,y),(x+w,y+h),(0,255,0),2)
@@ -521,6 +521,8 @@ def main():
     custom_goal = get_pose(corns_ids, goal_id)
     custom_env = Env(custom_x_range, custom_y_range, custom_rects_list)
     rrt_conn = RrtConnect(custom_start, custom_goal, 30, 0.1, 5000, custom_env)
+    cv2.imshow("Display detected robot, obstacles and path2", cropped_sized_input)
+    cv2.waitKey(0)
     path = rrt_conn.planning()
     robot_1_path, robot_2_path = split_path(path)
 

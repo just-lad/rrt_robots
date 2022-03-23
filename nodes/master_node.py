@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from twisted.internet.process import detector
 
 import rospy
 import cv2
@@ -11,7 +10,7 @@ from rrt_robots.msg import move_command_struct
 import rrt_connect as rrt
 import utilities as ut
 
-distance_threshold = 30
+distance_threshold = 40
 angle_threshold = 0.3
 delay = 2.0
 start_id = 2
@@ -37,9 +36,9 @@ class RobotPlanner:
         self.tree2 = None
         self.custom_obstacles_list = []
 
-        self.max_speed = 0.36
+        self.max_speed = 0.4
         self.turn_time = 0.1
-        self.forward_time = 0.3
+        self.forward_time = 0.2
 
     def initialize_scene(self):
         """
@@ -47,11 +46,11 @@ class RobotPlanner:
         """
         blurred_input = cv2.GaussianBlur(self.first_frame, (5, 5), 0)
         gray = cv2.cvtColor(blurred_input, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(gray, 150, 250, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(gray, 120, 250, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
             x, y, w, h = cv2.boundingRect(c)
-            if (80 < w < 300) and (80 < h < 300):
+            if ((70 < w < 100) and (130 < h < 500)) or ((130 < w < 500) and (70 < h < 100)):
                 rect = x, y, w, h
                 self.custom_obstacles_list.append(rect)
         start = ut.get_pose(self.aruco_corners, start_id)
@@ -62,7 +61,7 @@ class RobotPlanner:
         custom_env = rrt.Env(self.first_frame.shape[1],
                              self.first_frame.shape[0],
                              self.custom_obstacles_list)
-        rrt_conn = rrt.RrtConnect(robot_start, robot_goal, 30, 0.6, 5000, custom_env)
+        rrt_conn = rrt.RrtConnect(robot_start, robot_goal, 40, 0.2, 5000, custom_env)
         self.path = rrt_conn.planning()
         self.tree1 = rrt_conn.V1
         self.tree2 = rrt_conn.V2
@@ -131,7 +130,7 @@ class RobotPlanner:
         self.write_command(self.max_speed, -self.max_speed, self.turn_time)
 
     def go_forward(self):
-        self.write_command(self.max_speed, self.max_speed, self.forward_time)
+        self.write_command(self.max_speed, 0.9*self.max_speed, self.forward_time)
 
     def stop(self):
         self.write_command(0, 0, self.forward_time)
@@ -179,22 +178,14 @@ def main():
         if planner.move_to_point(robot_1_path[r1_index], start_id):
             if r1_index < len(robot_1_path) - 1:
                 r1_index += 1
-            elif r2_index == len(robot_2_path) - 1:
-                planner.stop()
-            else:
-                planner.stop()
-
-        planner.command_pub.publish(planner.command)
+        else:
+            planner.command_pub.publish(planner.command)
 
         if planner.move_to_point(robot_2_path[r2_index], goal_id):
             if r2_index < len(robot_2_path) - 1:
                 r2_index += 1
-            elif r1_index == len(robot_1_path) - 1:
-                planner.stop()
-            else:
-                planner.stop()
-
-        planner.command_pub.publish(planner.command)
+        else:
+            planner.command_pub.publish(planner.command)
 
         if r1_index == len(robot_1_path) - 1 and r2_index == len(robot_2_path) - 1:
             planner.stop_robots()

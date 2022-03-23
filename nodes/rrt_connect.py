@@ -181,10 +181,7 @@ class RrtConnect:
                             break
 
                         if is_node_same(node_new_prim, node_new):
-                            break
-
-                if is_node_same(node_new_prim, node_new):
-                    return extract_path(node_new, node_new_prim)
+                            return extract_path(node_new, node_new_prim)
 
             if len(self.V2) < len(self.V1):
                 list_mid = self.V2

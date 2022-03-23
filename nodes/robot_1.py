@@ -26,7 +26,7 @@ def main():
     ros = RosCommander()
     robot = Robot()
 
-    rospy.init_node('Robot_2')
+    rospy.init_node('Robot_1')
 
     while not rospy.is_shutdown():
         if ros.new_command:
